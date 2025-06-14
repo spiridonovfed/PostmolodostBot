@@ -1,5 +1,6 @@
 import os
 
+from asgiref.sync import sync_to_async
 from django.core.management.base import BaseCommand
 from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -87,16 +88,22 @@ class Command(BaseCommand):
                 faq_text += f"{idx}. {faq['question']}\n"
             await update.message.reply_text(faq_text, parse_mode="Markdown")
 
+        async def refresh_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+            await sync_to_async(retriever.refresh_faqs)()
+            await update.message.reply_text("Список вопросов и ответов был успешно обновлён!")
+
         async def post_init(application):
             commands = [
                 BotCommand("start", "Показать приветствие и инструкцию"),
                 BotCommand("list", "Показать все доступные темы (по алфавиту)"),
+                BotCommand("refresh", "Обновить список вопросов и ответов (для админов)"),
             ]
             await application.bot.set_my_commands(commands)
 
         app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
         app.add_handler(CommandHandler("start", start))
         app.add_handler(CommandHandler("list", list_questions))
+        app.add_handler(CommandHandler("refresh", refresh_command))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
         app.add_handler(CallbackQueryHandler(button))
 
