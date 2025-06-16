@@ -13,7 +13,7 @@ class FAQRetriever:
 
     def refresh_faqs(self):
         print("Fetching FAQs from DB...")
-        queryset = FAQ.objects.all().order_by("-created_at")
+        queryset = FAQ.objects.all().order_by("question")
         self.faqs = list(queryset.values("id", "question", "answer"))
         print(f"Loaded {len(self.faqs)} FAQs.")
         self.embeddings = self.model.encode([f["question"] for f in self.faqs], normalize_embeddings=True)

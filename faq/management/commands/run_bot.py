@@ -12,6 +12,7 @@ from telegram.ext import (
     filters,
 )
 
+from faq.models import StartMessage
 from faq.retriever import FAQRetriever
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -20,6 +21,8 @@ BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 class Command(BaseCommand):
     help = "Запускает Telegram FAQ-бота для ПостМолодость с поддержкой RAG"
 
+    PAGE_SIZE = 10
+
     def handle(self, *args, **kwargs):
         if not BOT_TOKEN:
             self.stderr.write("Ошибка: Установите переменную окружения TELEGRAM_BOT_TOKEN или укажите токен в коде.")
@@ -27,14 +30,33 @@ class Command(BaseCommand):
 
         retriever = FAQRetriever()
 
+        def make_faq_keyboard(faqs, page, page_size):
+            start = page * page_size
+            end = start + page_size
+            page_faqs = faqs[start:end]
+            keyboard = [[InlineKeyboardButton(faq["question"], callback_data=f"faq_{faq['id']}")] for faq in page_faqs]
+            nav_buttons = []
+            if page > 0:
+                nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"page_{page-1}"))
+            if end < len(faqs):
+                nav_buttons.append(InlineKeyboardButton("➡️ Далее", callback_data=f"page_{page+1}"))
+            if nav_buttons:
+                keyboard.append(nav_buttons)
+            return InlineKeyboardMarkup(keyboard)
+
         async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-            msg = (
-                "👋 Добро пожаловать в ПостМолодость FAQ-бот!\n\n"
-                "Вы можете задать любой вопрос о нашем пространстве — настольные игры, психотерапия, "
-                "публичные мероприятия и многое другое.\n"
-                "Просто напишите ваш вопрос или используйте команду /list, чтобы увидеть все доступные темы."
-            )
-            await update.message.reply_text(msg)
+            messages = await sync_to_async(list)(StartMessage.objects.order_by("id"))
+            if not messages:
+                text = (
+                    "👋 Добро пожаловать в ПостМолодость FAQ-бот!\n\n"
+                    "Вы можете задать любой вопрос о нашем пространстве — настольные игры, психотерапия, "
+                    "публичные мероприятия и многое другое.\n"
+                    "Просто напишите ваш вопрос или используйте команду /list, чтобы увидеть все доступные темы."
+                )
+                await update.message.reply_text(text)
+            else:
+                for msg in messages:
+                    await update.message.reply_text(msg.message)
 
         async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_q = update.message.text
@@ -68,13 +90,25 @@ class Command(BaseCommand):
             query = update.callback_query
             await query.answer()
             data = query.data
+
+            sorted_faqs = sorted(retriever.faqs, key=lambda f: f["question"].lower())
+            page_size = self.PAGE_SIZE
+
             if data.startswith("faq_"):
                 faq_id = int(data[4:])
                 faq = next((f for f in retriever.faqs if f["id"] == faq_id), None)
                 if faq:
-                    await query.message.reply_text(faq["answer"])
+                    question = faq["question"]
+                    answer = faq["answer"]
+                    text = f"*{question}*\n\n{answer}"
+                    await query.message.reply_text(text, parse_mode="Markdown")
                 else:
                     await query.message.reply_text("Извините, ответ не найден.")
+
+            elif data.startswith("page_"):
+                page = int(data[5:])
+                reply_markup = make_faq_keyboard(sorted_faqs, page, page_size)
+                await query.edit_message_reply_markup(reply_markup=reply_markup)
 
         async def list_questions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             faqs = retriever.faqs
@@ -83,10 +117,12 @@ class Command(BaseCommand):
                 return
 
             sorted_faqs = sorted(faqs, key=lambda f: f["question"].lower())
-            faq_text = "*Все доступные вопросы:*\n\n"
-            for idx, faq in enumerate(sorted_faqs, 1):
-                faq_text += f"{idx}. {faq['question']}\n"
-            await update.message.reply_text(faq_text, parse_mode="Markdown")
+            page = 0
+            reply_markup = make_faq_keyboard(sorted_faqs, page, self.PAGE_SIZE)
+            await update.message.reply_text(
+                "Все доступные вопросы:\n\n(Нажмите на вопрос, чтобы получить ответ)",
+                reply_markup=reply_markup,
+            )
 
         async def refresh_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await sync_to_async(retriever.refresh_faqs)()
