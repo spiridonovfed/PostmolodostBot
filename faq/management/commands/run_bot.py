@@ -48,15 +48,15 @@ class Command(BaseCommand):
             messages = await sync_to_async(list)(StartMessage.objects.order_by("id"))
             if not messages:
                 text = (
-                    "👋 Добро пожаловать в ПостМолодость FAQ-бот!\n\n"
+                    "*👋 Добро пожаловать в ПостМолодость FAQ-бот!*\n\n"
                     "Вы можете задать любой вопрос о нашем пространстве — настольные игры, психотерапия, "
                     "публичные мероприятия и многое другое.\n"
                     "Просто напишите ваш вопрос или используйте команду /list, чтобы увидеть все доступные темы."
                 )
-                await update.message.reply_text(text)
+                await update.message.reply_text(text, parse_mode="Markdown")
             else:
                 for msg in messages:
-                    await update.message.reply_text(msg.message)
+                    await update.message.reply_text(msg.message, parse_mode="Markdown")
 
         async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_q = update.message.text
@@ -71,7 +71,8 @@ class Command(BaseCommand):
             if not top_indices:
                 await update.message.reply_text(
                     "Извините, я не смог найти подходящих тем. Попробуйте переформулировать "
-                    "вопрос или воспользуйтесь /list для просмотра всех тем."
+                    "вопрос или воспользуйтесь /list для просмотра всех тем.",
+                    parse_mode="Markdown",
                 )
                 return
 
@@ -84,6 +85,7 @@ class Command(BaseCommand):
             await update.message.reply_text(
                 "Вот наиболее подходящие вопросы. Нажмите на интересующий, чтобы увидеть ответ:",
                 reply_markup=reply_markup,
+                parse_mode="Markdown",
             )
 
         async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -103,7 +105,7 @@ class Command(BaseCommand):
                     text = f"*{question}*\n\n{answer}"
                     await query.message.reply_text(text, parse_mode="Markdown")
                 else:
-                    await query.message.reply_text("Извините, ответ не найден.")
+                    await query.message.reply_text("Извините, ответ не найден.", parse_mode="Markdown")
 
             elif data.startswith("page_"):
                 page = int(data[5:])
@@ -113,7 +115,7 @@ class Command(BaseCommand):
         async def list_questions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             faqs = retriever.faqs
             if not faqs:
-                await update.message.reply_text("Список вопросов пока пуст.")
+                await update.message.reply_text("Список вопросов пока пуст.", parse_mode="Markdown")
                 return
 
             sorted_faqs = sorted(faqs, key=lambda f: f["question"].lower())
@@ -122,11 +124,12 @@ class Command(BaseCommand):
             await update.message.reply_text(
                 "Все доступные вопросы:\n\n(Нажмите на вопрос, чтобы получить ответ)",
                 reply_markup=reply_markup,
+                parse_mode="Markdown",
             )
 
         async def refresh_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await sync_to_async(retriever.refresh_faqs)()
-            await update.message.reply_text("Список вопросов и ответов был успешно обновлён!")
+            await update.message.reply_text("Список вопросов и ответов был успешно обновлён!", parse_mode="Markdown")
 
         async def post_init(application):
             commands = [

@@ -1,10 +1,12 @@
 from django.conf import settings
 from django.db import models
 
+MARKDOWN_HELP = "Форматирование: *жирный* , _курсив_ , `моноширинный` , [ссылка](https://example.com)"
+
 
 class FAQ(models.Model):
     question = models.TextField(blank=False, null=False)
-    answer = models.TextField(blank=False, null=False)
+    answer = models.TextField(blank=False, null=False, help_text=MARKDOWN_HELP)
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -24,7 +26,7 @@ class FAQ(models.Model):
 
 
 class StartMessage(models.Model):
-    message = models.TextField(blank=False, null=False)
+    message = models.TextField(blank=False, null=False, help_text=MARKDOWN_HELP)
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
