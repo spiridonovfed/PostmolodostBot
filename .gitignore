@@ -190,3 +190,5 @@ fabric.properties
 /.idea/PostmolodostBot.iml
 /.idea/vcs.xml
 /db.sqlite3
+
+media/
