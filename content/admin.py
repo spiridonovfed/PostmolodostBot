@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ImageForTopic, StartMessage, Topic
+from content.models import ImageForTopic, StartMessage, Topic
 
 
 class ImageForTopicInline(admin.TabularInline):
