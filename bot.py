@@ -1,15 +1,11 @@
 import os
 
 from asgiref.sync import sync_to_async
-from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CallbackQueryHandler,
-    CommandHandler,
-    ContextTypes,
-    MessageHandler,
-    filters,
-)
+from telegram import (BotCommand, InlineKeyboardButton, InlineKeyboardMarkup,
+                      Update)
+from telegram.ext import (ApplicationBuilder, CallbackQueryHandler,
+                          CommandHandler, ContextTypes, MessageHandler,
+                          filters)
 
 from content.models import StartMessage, Topic
 from retriever import TopicRetriever
@@ -25,13 +21,20 @@ def make_topic_keyboard(topics, page, page_size):
     current_end = current_start + page_size
     topics_page = topics[current_start:current_end]
 
-    keyboard = [[InlineKeyboardButton(topic["title"], callback_data=f"topic_{topic['id']}")] for topic in topics_page]
+    keyboard = [
+        [InlineKeyboardButton(topic["title"], callback_data=f"topic_{topic['id']}")]
+        for topic in topics_page
+    ]
 
     navigation_buttons = []
     if page > 0:
-        navigation_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"page_{page - 1}"))
+        navigation_buttons.append(
+            InlineKeyboardButton("⬅️ Назад", callback_data=f"page_{page - 1}")
+        )
     if current_end < len(topics):
-        navigation_buttons.append(InlineKeyboardButton("➡️ Далее", callback_data=f"page_{page + 1}"))
+        navigation_buttons.append(
+            InlineKeyboardButton("➡️ Далее", callback_data=f"page_{page + 1}")
+        )
     if navigation_buttons:
         keyboard.append(navigation_buttons)
     return InlineKeyboardMarkup(keyboard)
@@ -48,15 +51,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text
-    user_input_vector = retriever.model.encode([user_input], normalize_embeddings=True)[0]
-    scores = retriever.embeddings @ user_input_vector
 
-    min_score = 0.65
-    top_k = 4
+    top_topics = retriever.query(user_input, top_k=4)
 
-    top_indices = [i for i in scores.argsort()[::-1] if scores[i] >= min_score]
-
-    if not top_indices:
+    if not top_topics:
         await update.message.reply_text(
             "Извините, я не смог найти подходящих тем. Попробуйте переформулировать "
             "вопрос или воспользуйтесь /list для просмотра всех тем.",
@@ -64,10 +62,9 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    top_indices = top_indices[:top_k]
     buttons = [
-        [InlineKeyboardButton(retriever.topics[i]["title"], callback_data=f"topic_{retriever.topics[i]['id']}")]
-        for i in top_indices
+        [InlineKeyboardButton(topic["title"], callback_data=f"topic_{topic['id']}")]
+        for topic in top_topics
     ]
     reply_markup = InlineKeyboardMarkup(buttons)
     await update.message.reply_text(
@@ -87,7 +84,9 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data.startswith("topic_"):
         topic_id = int(data[6:])
-        topic = await sync_to_async(lambda: Topic.objects.prefetch_related("images").get(id=topic_id))()
+        topic = await sync_to_async(
+            lambda: Topic.objects.prefetch_related("images").get(id=topic_id)
+        )()
         title = topic.title
         text = topic.text
         text = f"*{title}*\n\n{text}"
@@ -98,7 +97,9 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             img_path = img.image.path
             caption = img.caption or ""
             with open(img_path, "rb") as photo:
-                await query.message.reply_photo(photo=photo, caption=caption if caption else None)
+                await query.message.reply_photo(
+                    photo=photo, caption=caption if caption else None
+                )
 
     elif data.startswith("page_"):
         page = int(data[5:])
@@ -124,7 +125,9 @@ async def list_topics(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def refresh_topics_from_db(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await sync_to_async(retriever.refresh_topics_from_db)()
-    await update.message.reply_text("Список тем был успешно обновлён!", parse_mode="Markdown")
+    await update.message.reply_text(
+        "Список тем был успешно обновлён!", parse_mode="Markdown"
+    )
 
 
 async def post_init(application):
